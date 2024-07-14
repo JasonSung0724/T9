@@ -6,10 +6,22 @@ import json
 import os
 import sqlite3
 import datetime
+import psycopg2
+from psycopg2 import Error
 
 async def DB_connect():
-    DATABASE_PATH = 'T9.db'
-    conn = sqlite3.connect(DATABASE_PATH)
+    try:
+        conn = psycopg2.connect(
+            dbname="d5rambgu7d2n92",
+            user="u75p3bjmps553l",
+            password="p9a01ca7070c719e093cf202a51ac3bace95a2869fb77852052b8958e57b7ac16",
+            host="ccba8a0vn4fb2p.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com",
+            port="5432"
+        )
+        print('Connect DB success.')
+    except Error as e:
+        print(f"Error connecting to PostgreSQL: {e}")
+
     conn.commit()
     return conn
 
@@ -21,45 +33,45 @@ async def Message_handler (conn , message):
         banker_cards = json.dumps(message['BankerCard'])
         player_cards = json.dumps(message['PlayerCard'])
         win_area = message['WinArea']
-        game_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        Player_Win = 0
-        Banker_Win = 0
-        Tie_Game = 0
-        Any_Pair = 0
-        Perfect_Pair = 0
-        Lucky_Six = 0
-        Player_Pair = 0
-        Banker_Pair = 0
+        game_date = datetime.datetime.now()
+        Player_Win = False
+        Banker_Win = False
+        Tie_Game = False
+        Any_Pair = False
+        Perfect_Pair = False
+        Lucky_Six = False
+        Player_Pair = False
+        Banker_Pair = False
         for Winner in win_area :
             if Winner == 0 :
-                Banker_Win = 1
+                Banker_Win = True
             elif Winner == 1 :
-                Player_Win = 1 
+                Player_Win = True
             elif Winner == 2 :
-                Tie_Game = 1
+                Tie_Game = True
             elif Winner == 4 :
-                Player_Pair = 1 
+                Player_Pair = True 
             elif Winner == 9 :
-                Any_Pair = 1 
+                Any_Pair = True
             elif Winner == 3 :
-                Banker_Pair = 1
+                Banker_Pair = True
             elif Winner == 6 or Winner == 26:
-                Lucky_Six = 1
+                Lucky_Six = True
             elif Winner == 10 :
-                Perfect_Pair = 1 
+                Perfect_Pair = True 
         cursor = conn.cursor()
         cursor.execute('''
-                INSERT INTO Game_Result (Table_id, game_date, Banker_Points, Player_Points, Banker_Card, Player_Card, Player_Win,Banker_Win,Tie_Game,Any_Pair,Perfect_Pair,Lucky_Six,Player_Pair,Banker_Pair)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (Table_id, game_date, banker_points, player_points, banker_cards, player_cards, Player_Win, Banker_Win, Tie_Game, Any_Pair, Perfect_Pair, Lucky_Six, Player_Pair, Banker_Pair))
+            INSERT INTO game_result (table_id, game_date, banker_points, player_points, banker_card, player_card, player_win, banker_win, tie_game, any_pair, perfect_pair, lucky_six, player_pair, banker_pair)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+        ''', (Table_id, game_date, banker_points, player_points, banker_cards, player_cards, Player_Win, Banker_Win, Tie_Game, Any_Pair, Perfect_Pair, Lucky_Six, Player_Pair, Banker_Pair))
         conn.commit()
     elif message['OpCode'] == 'Shuffle' :
-        Event_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        Event_time = datetime.datetime.now()
         cursor = conn.cursor()
         cursor.execute('''
-                INSERT INTO Event (Event_type , Table_id , Event_time)
-                VALUES (?, ?, ?)
-            ''', (message['OpCode'] , message['TableId']), Event_time)
+                INSERT INTO event (event_type , table_id , event_time)
+                VALUES (%s, %s, %s)
+            ''', (message['OpCode'] , message['TableId'], Event_time))
         conn.commit()
 
 async def LoginGetToken():
@@ -140,9 +152,15 @@ async def connect():
                             elif message_data['OpCode'] == 'RoundResult' or message_data['OpCode'] == 'StartGame' or message_data['OpCode'] == 'Shuffle':
                                 await Message_handler(conn=conn , message=message_data)
                                 print(message_data)
-
+                        except json.JSONDecodeError as e:
+                            print(f"JSON decode error: {e}")
+                        except KeyError as e:
+                            print(f"KeyError: {e}. Message: {message}")
+                        except Exception as e:
+                            print(f"Unexpected error: {e}")
                         except :
-                            print("Receive message error")
+                            print(f"Receive message error {message}")
+                            
 
         except websockets.ConnectionClosed:
             conn.close()

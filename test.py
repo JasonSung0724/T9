@@ -1,1 +1,4 @@
-import sqlite3
+import ssl
+import certifi
+
+print(certifi.where())
